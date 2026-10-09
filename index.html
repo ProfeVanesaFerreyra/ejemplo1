@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación Clínica Avanzada de Enfermería - Dificultad Respiratoria Aguda</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .btn-interact {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-interact:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px -6px rgba(14, 165, 233, 0.45);
+        }
+        .btn-interact:active {
+            transform: translateY(0);
+        }
+        .alarm-flash {
+            animation: pulse-red-alarm 1.2s infinite alternate;
+        }
+        @keyframes pulse-red-alarm {
+            0% { background-color: rgba(220, 38, 38, 0.15); }
+            100% { background-color: rgba(220, 38, 38, 0.55); }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-sky-500 selection:text-white">
+
+    <header class="bg-slate-900/95 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 backdrop-blur-md shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-500 p-0.5 shadow-md flex items-center justify-center">
+                    <div class="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-sky-400 font-black text-xl">
+                        🩺
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base font-bold text-slate-100 leading-tight">Simulación Clínica de Enfermería • Box de Guardia / UTI</h1>
+                        <span class="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-bold uppercase tracking-wider border border-sky-500/30">Fidelidad Anatómica</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Caso: Dificultad Respiratoria Aguda • Paciente: Carlos M. (68 años) • Enfermera: Sofía</p>
+                </div>
+            </div>
+
+            <!-- Header Controls & Audio Toggle -->
+            <div class="flex items-center gap-2">
+                <button id="btnAudioToggle" onclick="toggleAudio()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-2 transition shadow-sm">
+                    <span id="audioIcon">🔇</span> Sonido Monitor
+                </button>
+                <div class="hidden sm:flex bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-xs">
+                    <button onclick="setCameraView('3d_photo')" class="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold shadow">📷 Perspectiva Clínica</button>
+                    <button onclick="setCameraView('face')" class="px-3 py-1.5 rounded-lg hover:bg-slate-700 text-slate-300 font-medium">👤 Rostro / Vía Aérea</button>
+                    <button onclick="setCameraView('hand')" class="px-3 py-1.5 rounded-lg hover:bg-slate-700 text-slate-300 font-medium">🖐️ Vía IV / Pulsiómetro</button>
+                    <button onclick="setCameraView('monitor')" class="px-3 py-1.5 rounded-lg hover:bg-slate-700 text-slate-300 font-medium">🖥️ Monitor</button>
+                </div>
+                <button onclick="reiniciarSimulacion()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition">
+                    🔄 Reiniciar
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
+
+        <!-- LEFT COLUMN: Realistic 3D Hospital Room View & Segmental Examination (7 Columns) -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- Realistic Clinical Viewport -->
+            <div class="relative w-full h-[420px] md:h-[500px] rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-950 group">
+                
+                <!-- Patient Image with Dynamic Camera Zoom and Panning -->
+                <div class="w-full h-full overflow-hidden flex items-center justify-center relative bg-slate-900">
+                    <img id="patientRealImage" 
+                         src="https://lh3.googleusercontent.com/d/12yMTez2Q-Yry-7c78Yp3BhYn37B2fPg-" 
+                         alt="Paciente en Cama de Guardia con Soporte Ventilatorio" 
+                         onerror="handlePatientImageError(this)"
+                         class="w-full h-full object-cover object-center transition-all duration-700 ease-out origin-center select-none" />
+                    
+                    <!-- Dynamic Physiological Cyanosis & Hypoxia Shader Overlay -->
+                    <div id="cyanosisFilter" class="absolute inset-0 pointer-events-none transition-all duration-700"></div>
+
+                    <!-- Interactive Anatomical Hotspots Over the Patient -->
+                    <div class="absolute inset-0 pointer-events-none">
+                        <!-- Hotspot: Rostro / Vía Aérea -->
+                        <div class="absolute top-[28%] left-[32%] pointer-events-auto group/spot">
+                            <button onclick="abrirModalExamen('cabeza')" class="relative flex items-center justify-center w-7 h-7 rounded-full bg-sky-500/80 hover:bg-sky-400 text-white shadow-lg border-2 border-white/80 transition transform hover:scale-125">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                                <span class="text-xs">👤</span>
+                            </button>
+                            <span class="opacity-0 group-hover/spot:opacity-100 transition absolute left-8 top-0 whitespace-nowrap bg-slate-900/90 text-[10px] text-sky-200 px-2 py-1 rounded shadow-md border border-slate-700 backdrop-blur">
+                                Rostro / Máscara
+                            </span>
+                        </div>
+
+                        <!-- Hotspot: Tórax / Mecánica Ventilatoria -->
+                        <div class="absolute top-[48%] left-[36%] pointer-events-auto group/spot">
+                            <button onclick="abrirModalExamen('torax')" class="relative flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/80 hover:bg-emerald-400 text-white shadow-lg border-2 border-white/80 transition transform hover:scale-125">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="text-xs">🫁</span>
+                            </button>
+                            <span class="opacity-0 group-hover/spot:opacity-100 transition absolute left-8 top-0 whitespace-nowrap bg-slate-900/90 text-[10px] text-emerald-200 px-2 py-1 rounded shadow-md border border-slate-700 backdrop-blur">
+                                Auscultación Tórax
+                            </span>
+                        </div>
+
+                        <!-- Hotspot: Vía IV y Sensor de Oximetría -->
+                        <div class="absolute top-[75%] left-[52%] pointer-events-auto group/spot">
+                            <button onclick="abrirModalExamen('perfusion')" class="relative flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/80 hover:bg-amber-400 text-white shadow-lg border-2 border-white/80 transition transform hover:scale-125">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span class="text-xs">🖐️</span>
+                            </button>
+                            <span class="opacity-0 group-hover/spot:opacity-100 transition absolute left-8 top-0 whitespace-nowrap bg-slate-900/90 text-[10px] text-amber-200 px-2 py-1 rounded shadow-md border border-slate-700 backdrop-blur">
+                                Vía IV & Sensor SpO₂
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Device Overlay Tag -->
+                <div class="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700/90 shadow-xl text-xs flex items-center gap-2.5 z-20">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping"></span>
+                    <div>
+                        <span class="text-slate-400 block text-[9px] font-bold uppercase tracking-wider">Dispositivo Activo</span>
+                        <span id="dispositivoNombre3D" class="font-bold text-sky-300 text-xs">Cánula Nasal (2 L/min)</span>
+                    </div>
+                </div>
+
+                <!-- Hypoxia Critical Visual Overlay -->
+                <div id="alarmOverlay" class="hidden absolute inset-0 alarm-flash pointer-events-none flex flex-col items-center justify-center p-4 z-20">
+                    <span class="bg-red-600/95 text-white font-extrabold px-5 py-2 rounded-full text-xs md:text-sm shadow-2xl tracking-widest uppercase animate-bounce border-2 border-white/30">
+                        ⚠️ ALERTA CLÍNICA: HIPOXIA SEVERA (SatO₂ < 90%)
+                    </span>
+                    <span class="text-xs font-semibold text-red-100 mt-2 bg-slate-900/90 px-3 py-1 rounded-lg backdrop-blur">
+                        Observar fatiga de músculos accesorios y cianosis periférica
+                    </span>
+                </div>
+
+                <!-- Camera Focus Controls Overlay -->
+                <div class="absolute bottom-3 left-3 right-3 pointer-events-none flex justify-between items-center z-20">
+                    <span class="text-slate-300 text-[11px] hidden sm:inline-block bg-slate-900/80 px-2.5 py-1 rounded-lg backdrop-blur border border-slate-800">
+                        💡 Toca los puntos interactivos 👤 🫁 🖐️ o cambia la perspectiva:
+                    </span>
+                    <div class="pointer-events-auto flex gap-1.5 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700 shadow-xl ml-auto">
+                        <button onclick="setCameraView('3d_photo')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium border border-slate-700 transition">📷 Clínica</button>
+                        <button onclick="setCameraView('face')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium border border-slate-700 transition">👤 Rostro</button>
+                        <button onclick="setCameraView('hand')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium border border-slate-700 transition">🖐️ Vía IV</button>
+                        <button onclick="setCameraView('monitor')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium border border-slate-700 transition">🖥️ Monitor</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sky-400 text-lg">🩺</span>
+                        <h3 class="font-bold text-slate-100 text-xs uppercase tracking-wider">Valoración Segmentaria de Enfermería</h3>
+                    </div>
+                    <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">Examen físico continuo</span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <button onclick="abrirModalExamen('cabeza')" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition flex flex-col gap-1">
+                        <span class="text-sky-400 font-bold text-[11px]">Rostro / Máscara</span>
+                        <span id="examRostroSummary" class="text-slate-400 text-[10px] truncate">Disnea, tinte pálido</span>
+                    </button>
+                    <button onclick="abrirModalExamen('cuello')" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition flex flex-col gap-1">
+                        <span class="text-sky-400 font-bold text-[11px]">Cuello / Músculos</span>
+                        <span id="examCuelloSummary" class="text-slate-400 text-[10px] truncate">Uso ECM (+2), tiraje</span>
+                    </button>
+                    <button onclick="abrirModalExamen('torax')" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition flex flex-col gap-1">
+                        <span class="text-sky-400 font-bold text-[11px]">Tórax / Ruidos</span>
+                        <span id="examToraxSummary" class="text-slate-400 text-[10px] truncate">Sibilancias bilaterales</span>
+                    </button>
+                    <button onclick="abrirModalExamen('perfusion')" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition flex flex-col gap-1">
+                        <span class="text-sky-400 font-bold text-[11px]">Vía IV / Perfusión</span>
+                        <span id="examPerfusionSummary" class="text-slate-400 text-[10px] truncate">Llenado capilar 3 seg</span>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="lg:col-span-5 flex flex-col gap-4">
+
+            <!-- REALISTIC MULTI-LEAD HOSPITAL MONITOR (Matching Reference Photo) -->
+            <div class="bg-black rounded-2xl p-4 border-2 border-slate-800 shadow-2xl relative overflow-hidden font-mono-tech">
+                
+                <div class="flex justify-between items-center text-[11px] text-slate-500 border-b border-slate-900 pb-2 mb-3">
+                    <span class="flex items-center gap-1.5 text-green-400 font-bold">
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
+                        MONITOR MULTIPARAMÉTRICO • BOX 04
+                    </span>
+                    <span id="horaMonitor" class="text-slate-400">22:24:17</span>
+                </div>
+
+                <!-- 1. ECG Trace (Green) -->
+                <div class="relative mb-2">
+                    <div class="flex justify-between items-center text-[10px] text-green-400 mb-0.5">
+                        <span>ECG (II) - FC</span>
+                        <span class="font-bold text-sm"><span id="valFC">96</span> <span class="text-[9px] text-slate-400">LPM</span></span>
+                    </div>
+                    <canvas id="ecgCanvas" class="w-full h-11 bg-slate-950/90 rounded-lg border border-green-950/60"></canvas>
+                </div>
+
+                <!-- 2. Arterial Blood Pressure Waveform (Red) -->
+                <div class="relative mb-2">
+                    <div class="flex justify-between items-center text-[10px] text-red-400 mb-0.5">
+                        <span>TA (Invasiva / NIBP)</span>
+                        <span class="font-bold text-sm"><span id="displayTA">120/75</span> <span class="text-[9px] text-slate-400">mmHg</span></span>
+                    </div>
+                    <canvas id="bpCanvas" class="w-full h-10 bg-slate-950/90 rounded-lg border border-red-950/60"></canvas>
+                </div>
+
+                <!-- 3. Pleth SpO2 Waveform (Cyan) -->
+                <div class="relative mb-2">
+                    <div class="flex justify-between items-center text-[10px] text-cyan-400 mb-0.5">
+                        <span>Pleth SpO₂ (Oximetría)</span>
+                        <span class="font-bold text-sm"><span id="valSat">89</span> <span class="text-[9px] text-slate-400">%</span></span>
+                    </div>
+                    <canvas id="spo2Canvas" class="w-full h-10 bg-slate-950/90 rounded-lg border border-cyan-950/60"></canvas>
+                </div>
+
+                <!-- 4. Respiration Trace (Yellow) -->
+                <div class="relative mb-2">
+                    <div class="flex justify-between items-center text-[10px] text-yellow-400 mb-0.5">
+                        <span>Frecuencia Respiratoria</span>
+                        <span class="font-bold text-sm"><span id="displayFR">28</span> <span class="text-[9px] text-slate-400">rpm</span></span>
+                    </div>
+                    <canvas id="respCanvas" class="w-full h-9 bg-slate-950/90 rounded-lg border border-yellow-950/60"></canvas>
+                </div>
+
+                <!-- Lab & ABG Fast Access -->
+                <div class="mt-3 pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
+                    <span class="text-slate-400 text-[10px]">Gasometría Arterial (EAB):</span>
+                    <button onclick="abrirModalGasometria()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/30 font-semibold text-[10px]">
+                        🧪 Ver Informe EAB
+                    </button>
+                </div>
+            </div>
+
+            <!-- CLINICAL DECISION & PATHWAY PANEL -->
+            <div id="panelDecisiones" class="glass-dark p-5 rounded-2xl shadow-xl border border-slate-800 flex-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-3 py-1 rounded-md bg-sky-500/20 text-sky-400 font-bold text-xs uppercase tracking-wider border border-sky-500/30">
+                            Toma de Decisiones Clínicas
+                        </span>
+                        <span id="faseTitulo" class="text-xs font-semibold text-slate-400">Etapa 1: Valoración Inicial</span>
+                    </div>
+
+                    <h3 id="tituloEvolucion" class="text-lg font-bold text-slate-100 mb-2">
+                        Selección del Dispositivo Inicial de Oxigenoterapia
+                    </h3>
+                    
+                    <p id="descripcionEvolucion" class="text-xs md:text-sm text-slate-300 leading-relaxed mb-4">
+                        Paciente masculino (68 años) en cama de guardia con fatiga, uso de músculos accesorios y SatO₂ de 89%. Sofía (enfermera) realiza valoración. ¿Qué conducta adopta?
+                    </p>
+                </div>
+
+                <!-- Action Buttons Container -->
+                <div id="contenedorOpciones" class="space-y-2.5 pt-2">
+                    <!-- Dynamic decision buttons generated here -->
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="max-w-7xl w-full mx-auto p-3 sm:p-5 mb-4">
+        <div class="glass-dark p-4 rounded-2xl border border-slate-800">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 border-b border-slate-800 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-emerald-400 text-base">📋</span>
+                    <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        Cuidados Autónomos de Enfermería (Plan PAE / NANDA-NOC-NIC)
+                    </h3>
+                </div>
+                <span class="text-[11px] text-slate-400">Marque las intervenciones de enfermería ejecutadas:</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                <label class="flex items-center gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                    <input type="checkbox" checked class="w-4 h-4 accent-sky-500 rounded">
+                    <span class="text-slate-300">Posición Semi-Fowler (30°-45°)</span>
+                </label>
+                <label class="flex items-center gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                    <input type="checkbox" checked class="w-4 h-4 accent-sky-500 rounded">
+                    <span class="text-slate-300">Control estricto Signos Vitales</span>
+                </label>
+                <label class="flex items-center gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                    <input type="checkbox" class="w-4 h-4 accent-sky-500 rounded">
+                    <span class="text-slate-300">Monitoreo de Vía Venosa / IV</span>
+                </label>
+                <label class="flex items-center gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                    <input type="checkbox" class="w-4 h-4 accent-sky-500 rounded">
+                    <span class="text-slate-300">Evaluación de Tolera/Músculos</span>
+                </label>
+                <label class="flex items-center gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                    <input type="checkbox" class="w-4 h-4 accent-sky-500 rounded">
+                    <span class="text-slate-300">Interconsulta Kinesiología</span>
+                </label>
+            </div>
+        </div>
+    </footer>
+
+    <!-- PHYSICAL EXAM MODAL -->
+    <div id="modalExamen" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="cerrarModalExamen()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold">✕</button>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl" id="modalExamenIcono">🔍</span>
+                <div>
+                    <h3 id="modalExamenTitulo" class="text-base font-bold text-slate-100">Examen Físico Segmentario</h3>
+                    <p id="modalExamenSub" class="text-xs text-slate-400">Valoración detallada de enfermería</p>
+                </div>
+            </div>
+
+            <div id="modalExamenContenido" class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 text-xs space-y-3">
+                <!-- Injected dynamically -->
+            </div>
+
+            <!-- Audio Stethoscope Player -->
+            <div id="audioAuscultationContainer" class="mb-4 bg-sky-950/40 p-3 rounded-xl border border-sky-800/40 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                        🎧 Auscultación Pulmonar con Estetoscopio Virtual
+                    </span>
+                    <button onclick="reproducirAuscultacion()" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold">
+                        ▶ Escuchar Ruidos
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-300 italic" id="auscultacionAudioTexto">Reproduciendo sibilancias espiratorias difusas...</p>
+            </div>
+
+            <button onclick="cerrarModalExamen()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl text-xs transition">
+                Continuar Valoración
+            </button>
+        </div>
+    </div>
+
+    <!-- ARTERIAL BLOOD GAS (EAB) MODAL -->
+    <div id="modalGasometria" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="cerrarModalGasometria()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold">✕</button>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">🧪</span>
+                <div>
+                    <h3 class="text-base font-bold text-slate-100">Gasometría Arterial (EAB)</h3>
+                    <p class="text-xs text-slate-400">Informe de Laboratorio en Sangre Arterial</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 text-xs space-y-2.5 font-mono-tech">
+                <div class="flex justify-between text-slate-300 border-b border-slate-800 pb-1.5">
+                    <span>pH Arterial:</span>
+                    <span id="eabPH" class="font-bold text-amber-400">7.31 (Acidosis Leve)</span>
+                </div>
+                <div class="flex justify-between text-slate-300 border-b border-slate-800 pb-1.5">
+                    <span>PaO₂ (Presión Art. O₂):</span>
+                    <span id="eabPaO2" class="font-bold text-red-400">58 mmHg (Hipoxemia)</span>
+                </div>
+                <div class="flex justify-between text-slate-300 border-b border-slate-800 pb-1.5">
+                    <span>PaCO₂ (Presión Art. CO₂):</span>
+                    <span id="eabPaCO2" class="font-bold text-yellow-400">48 mmHg (Hipercapnia leve)</span>
+                </div>
+                <div class="flex justify-between text-slate-300 border-b border-slate-800 pb-1.5">
+                    <span>HCO₃⁻ (Bicarbonato):</span>
+                    <span id="eabHCO3" class="font-bold text-slate-300">24 mEq/L (Normal)</span>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>PAFI (PaO₂/FiO₂):</span>
+                    <span id="eabPAFI" class="font-bold text-cyan-400">276 (Insuficiencia Moderada)</span>
+                </div>
+            </div>
+
+            <p class="text-[11px] text-slate-400 leading-relaxed mb-4">
+                💡 <strong>Análisis Enfermero:</strong> Patrón de acidosis respiratoria no compensada secundaria a hipoventilación alveolar y desequilibrio V/Q.
+            </p>
+
+            <button onclick="cerrarModalGasometria()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl text-xs transition">
+                Cerrar Reporte
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================================
+           CLINICAL SCENARIO DATASETS
+           ========================================================================= */
+        const datosEscenas = {
+            escena1: {
+                fase: "Etapa 1: Valoración Inicial",
+                dispositivo: "Cánula Nasal (Basal 2L/min)",
+                sat: 89,
+                fr: 28,
+                fc: 96,
+                ta: "120/75",
+                auscultacion: "Sibilancias espiratorias difusas bilaterales",
+                mecanica: "Uso de esternocleidomastoideo (+2), tiraje intercostal y disnea.",
+                eab: { ph: "7.31", pao2: "58 mmHg", paco2: "48 mmHg", hco3: "24 mEq/L", pafi: "276" },
+                rass: "+2 (Agitado, ansioso, habla frases cortas)",
+                llenadoCapilar: "3 segundos (retardo en perfusión)",
+                titulo: "Selección del Dispositivo Inicial de Oxigenoterapia",
+                descripcion: "Paciente masculino (68 años) acostado en la cama de guardia con fatiga respiratoria, taquipnea (28 rpm) e hipoxemia (SatO₂ 89%). Sofía (enfermera) observa trabajo muscular accesorio. ¿Qué dispositivo de oxigenoterapia selecciona?",
+                opciones: [
+                    { texto: "Cánula nasal a 2 L/min (FiO₂ ~28%)", destino: "escena2_canula", estilo: "bg-sky-600 hover:bg-sky-500" },
+                    { texto: "Máscara simple al 40% (6-8 L/min)", destino: "escena2_mascara", estilo: "bg-emerald-600 hover:bg-emerald-500" },
+                    { texto: "CPAP con PEEP de 5 cmH₂O / VNI", destino: "escena2_cpap", estilo: "bg-indigo-600 hover:bg-indigo-500" }
+                ]
+            },
+            escena2_canula: {
+                fase: "Etapa 2: Evaluación a los 15 min (Cánula 2L)",
+                dispositivo: "Cánula Nasal a 2 L/min",
+                sat: 91,
+                fr: 26,
+                fc: 94,
+                ta: "122/78",
+                auscultacion: "Sibilancias persistentes, entrada de aire levemente disminuida",
+                mecanica: "Mantiene tiraje intercostal y trabajo ventilatorio aumentado.",
+                eab: { ph: "7.33", pao2: "62 mmHg", paco2: "46 mmHg", hco3: "24 mEq/L", pafi: "282" },
+                rass: "+1 (Inquieto)",
+                llenadoCapilar: "2.5 segundos",
+                titulo: "Respuesta Incompleta al Bajo Flujo",
+                descripcion: "Con cánula nasal a 2 L/min la saturación asciende apenas a 91%. El paciente persiste con fatiga de músculos accesorios y disnea. ¿Cómo continúa el plan de cuidados?",
+                opciones: [
+                    { texto: "Aumentar flujo de cánula a 5 L/min", destino: "resolucion_mala", estilo: "bg-amber-600 hover:bg-amber-500" },
+                    { texto: "Escalar a Máscara Simple al 40%", destino: "escena2_mascara", estilo: "bg-emerald-600 hover:bg-emerald-500" },
+                    { texto: "Escalar a CPAP con PEEP de 5 cmH₂O", destino: "escena2_cpap", estilo: "bg-indigo-600 hover:bg-indigo-500" }
+                ]
+            },
+            escena2_mascara: {
+                fase: "Etapa 2: Evaluación a los 15 min (Máscara Simple)",
+                dispositivo: "Máscara Venturi / Simple al 40%",
+                sat: 94,
+                fr: 22,
+                fc: 88,
+                ta: "118/72",
+                auscultacion: "Murmullo vesicular conservado, sibilancias aisladas",
+                mecanica: "Disminución aparente del tiraje intercostal.",
+                eab: { ph: "7.37", pao2: "75 mmHg", paco2: "41 mmHg", hco3: "24 mEq/L", pafi: "310" },
+                rass: "0 (Tranquilo, alerta)",
+                llenadoCapilar: "< 2 segundos",
+                titulo: "Estabilización Parcial con Bajo Flujo Alto FiO₂",
+                descripcion: "La Máscara Simple eleva la SatO₂ a 94% y disminuye la FR a 22 rpm. El paciente se muestra más relajado y logra responder preguntas.",
+                opciones: [
+                    { texto: "Mantener Máscara Simple + Kinesiología Respiratoria", destino: "resolucion_buena", estilo: "bg-emerald-600 hover:bg-emerald-500" },
+                    { texto: "Escalar a CPAP por trabajo respiratorio residual", destino: "escena2_cpap", estilo: "bg-indigo-600 hover:bg-indigo-500" }
+                ]
+            },
+            escena2_cpap: {
+                fase: "Etapa 2: Evaluación a los 15 min (CPAP VNI)",
+                dispositivo: "Máscara CPAP (PEEP 5 cmH₂O)",
+                sat: 97,
+                fr: 18,
+                fc: 82,
+                ta: "115/70",
+                auscultacion: "Excelente entrada de aire bilateral, murmullo vesicular claro",
+                mecanica: "Sin uso de músculos accesorios. Expansión torácica simétrica.",
+                eab: { ph: "7.40", pao2: "92 mmHg", paco2: "38 mmHg", hco3: "24 mEq/L", pafi: "380" },
+                rass: "0 (Relajado, colaborador)",
+                llenadoCapilar: "< 2 segundos",
+                titulo: "Excelente Respuesta Terapéutica (Presión Positiva)",
+                descripcion: "La CPAP recluta alvéolos colapsados, disminuye drásticamente el trabajo muscular y eleva la SatO₂ al 97% con FR de 18 rpm. Paciente estable y asintomático.",
+                opciones: [
+                    { texto: "Mantener CPAP con monitoreo continuo", destino: "resolucion_excelente", estilo: "bg-indigo-600 hover:bg-indigo-500" },
+                    { texto: "Retirar CPAP prematuramente para probar tolerancia", destino: "resolucion_mala", estilo: "bg-red-600 hover:bg-red-500" }
+                ]
+            },
+            resolucion_mala: {
+                fase: "Resultado: Deterioro y Agotamiento Ventilatorio",
+                dispositivo: "Agotamiento / Requerimiento ARM",
+                sat: 82,
+                fr: 36,
+                fc: 118,
+                ta: "140/90",
+                auscultacion: "Silencio auscultatorio por escaso volumen corriente",
+                mecanica: "Agotamiento diafragmático, disociación tóraco-abdominal.",
+                eab: { ph: "7.21", pao2: "45 mmHg", paco2: "62 mmHg", hco3: "23 mEq/L", pafi: "180" },
+                rass: "-1 (Somnoliento por narcosis de CO₂)",
+                llenadoCapilar: "4 segundos (Cianosis acra)",
+                titulo: "⚠️ Fracaso Terapéutico -> Requerimiento de ARM",
+                descripcion: "El soporte fue insuficiente o se interrumpió de forma precoz. El paciente sufrió fatiga muscular extrema y retención de CO₂. Se activa clave roja para intubación orotraqueal e ingreso a UTI.",
+                opciones: [
+                    { texto: "🔄 Reiniciar Simulación para reevaluar la estrategia", destino: "escena1", estilo: "bg-slate-700 hover:bg-slate-600" }
+                ]
+            },
+            resolucion_buena: {
+                fase: "Resultado: Estabilidad Aceptable",
+                dispositivo: "Máscara Simple Mantención",
+                sat: 95,
+                fr: 20,
+                fc: 84,
+                ta: "120/74",
+                auscultacion: "Campos bien ventilados, ruidos adventicios mínimos",
+                mecanica: "Patrón respiratorio regular sin tiraje.",
+                eab: { ph: "7.39", pao2: "82 mmHg", paco2: "39 mmHg", hco3: "24 mEq/L", pafi: "340" },
+                rass: "0 (Tranquilo)",
+                llenadoCapilar: "< 2 segundos",
+                titulo: "✅ Caso Resuelto: Estabilización Satisfactoria",
+                descripcion: "Buen criterio de enfermería. Lograste estabilizar los signos vitales y evitar el deterioro con soporte adecuado y monitoreo de enfermería.",
+                opciones: [
+                    { texto: "🔄 Reiniciar Simulación para probar otras rutas", destino: "escena1", estilo: "bg-slate-700 hover:bg-slate-600" }
+                ]
+            },
+            resolucion_excelente: {
+                fase: "Resultado: Éxito Terapéutico CVP",
+                dispositivo: "CPAP Mantenida Exitosamente",
+                sat: 98,
+                fr: 16,
+                fc: 78,
+                ta: "118/72",
+                auscultacion: "Murmullo vesicular conservado bilateralmente",
+                mecanica: "Patrón respiratorio eupneico coordinado.",
+                eab: { ph: "7.41", pao2: "95 mmHg", paco2: "37 mmHg", hco3: "24 mEq/L", pafi: "400" },
+                rass: "0 (Confortable)",
+                llenadoCapilar: "< 2 segundos",
+                titulo: "🏆 ¡Excelente Criterio Clínico!",
+                descripcion: "La indicación oportuna de VNI (CPAP) resolvió la insuficiencia respiratoria de forma precoz, evitando la intubación orotraqueal. ¡Felicitaciones!",
+                opciones: [
+                    { texto: "🔄 Reiniciar Simulación", destino: "escena1", estilo: "bg-slate-700 hover:bg-slate-600" }
+                ]
+            }
+        };
+
+        let escenaActual = "escena1";
+        let audioActivo = false;
+        let audioContext;
+
+        function setCameraView(vista) {
+            const img = document.getElementById('patientRealImage');
+            if (!img) return;
+
+            if (vista === '3d_photo') {
+                // Vista panorámica de la cama y el paciente
+                img.style.transform = "scale(1) translate(0%, 0%)";
+            } else if (vista === 'face') {
+                // Zoom óptico enfocado en el rostro, boca y dispositivo de oxígeno
+                img.style.transform = "scale(2.2) translate(14%, 15%)";
+            } else if (vista === 'hand') {
+                // Zoom enfocado en el antebrazo con la vía venosa y oxímetro de pulso
+                img.style.transform = "scale(2.4) translate(-10%, -24%)";
+            } else if (vista === 'monitor') {
+                // Zoom enfocado en el monitor multiparamétrico de cabecera
+                img.style.transform = "scale(2.1) translate(-27%, 18%)";
+            }
+        }
+
+        // Manejo progresivo de enlaces de Google Drive para garantizar visibilidad siempre
+        let intentosImagen = 0;
+        function handlePatientImageError(imgElement) {
+            intentosImagen++;
+            if (intentosImagen === 1) {
+                // Segundo intento: endpoint de thumbnail de alta resolución de Google Drive
+                imgElement.src = "https://drive.google.com/thumbnail?id=12yMTez2Q-Yry-7c78Yp3BhYn37B2fPg-&sz=w1920";
+            } else if (intentosImagen === 2) {
+                // Tercer intento: export view directo
+                imgElement.src = "https://drive.google.com/uc?export=view&id=12yMTez2Q-Yry-7c78Yp3BhYn37B2fPg-";
+            } else {
+                // Respaldo clínico de alta fidelidad si el link de Drive estuviese restringido a privado
+                imgElement.src = "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=1920";
+            }
+        }
+
+        function actualizarDispositivoYEstado3D(idEscena) {
+            const data = datosEscenas[idEscena] || datosEscenas.escena1;
+            const sat = data.sat;
+            const cyanosisFilter = document.getElementById('cyanosisFilter');
+            const alarmOverlay = document.getElementById('alarmOverlay');
+
+            if (sat < 90) {
+                if (cyanosisFilter) {
+                    cyanosisFilter.style.backgroundColor = "rgba(71, 85, 105, 0.45)"; // Tinte cianótico/pálido
+                    cyanosisFilter.style.opacity = "0.7";
+                }
+                if (alarmOverlay) alarmOverlay.classList.remove('hidden');
+            } else if (sat < 94) {
+                if (cyanosisFilter) {
+                    cyanosisFilter.style.backgroundColor = "rgba(180, 83, 9, 0.15)";
+                    cyanosisFilter.style.opacity = "0.3";
+                }
+                if (alarmOverlay) alarmOverlay.classList.add('hidden');
+            } else {
+                if (cyanosisFilter) {
+                    cyanosisFilter.style.backgroundColor = "transparent";
+                    cyanosisFilter.style.opacity = "0";
+                }
+                if (alarmOverlay) alarmOverlay.classList.add('hidden');
+            }
+        }
+
+        let ecgCanvas, ecgCtx, bpCanvas, bpCtx, spo2Canvas, spo2Ctx, respCanvas, respCtx;
+        let xPos = 0;
+
+        function initWaveCanvases() {
+            ecgCanvas = document.getElementById('ecgCanvas');
+            bpCanvas = document.getElementById('bpCanvas');
+            spo2Canvas = document.getElementById('spo2Canvas');
+            respCanvas = document.getElementById('respCanvas');
+
+            if (!ecgCanvas || !bpCanvas || !spo2Canvas || !respCanvas) return;
+
+            [ecgCanvas, bpCanvas, spo2Canvas, respCanvas].forEach(c => {
+                c.width = c.parentElement.clientWidth;
+                c.height = c.parentElement.clientHeight || 40;
+            });
+
+            ecgCtx = ecgCanvas.getContext('2d');
+            bpCtx = bpCanvas.getContext('2d');
+            spo2Ctx = spo2Canvas.getContext('2d');
+            respCtx = respCanvas.getContext('2d');
+
+            function renderWaves() {
+                requestAnimationFrame(renderWaves);
+
+                const data = datosEscenas[escenaActual] || datosEscenas.escena1;
+                const fc = data.fc || 90;
+                const speed = (fc / 60) * 2.2;
+
+                // Erase trail bar
+                [ecgCtx, bpCtx, spo2Ctx, respCtx].forEach(ctx => {
+                    ctx.fillStyle = 'rgba(2, 6, 23, 0.12)';
+                    ctx.fillRect(xPos, 0, 8, 50);
+                });
+
+                // 1. ECG Trace (Green)
+                ecgCtx.lineWidth = 1.8;
+                ecgCtx.strokeStyle = '#22c55e';
+                ecgCtx.beginPath();
+                const midECG = ecgCanvas.height / 2;
+                let yECG = midECG;
+                const phaseECG = (xPos * 0.15 * speed) % (Math.PI * 2);
+                if (phaseECG > 1.2 && phaseECG < 1.4) yECG -= 4;
+                else if (phaseECG >= 2.0 && phaseECG < 2.2) yECG -= 22;
+                else if (phaseECG >= 2.2 && phaseECG < 2.4) yECG += 6;
+                else if (phaseECG >= 3.2 && phaseECG < 3.6) yECG -= 5;
+                ecgCtx.moveTo(xPos, midECG);
+                ecgCtx.lineTo(xPos + 1.5, yECG);
+                ecgCtx.stroke();
+
+                // 2. Arterial Blood Pressure Wave (Red)
+                bpCtx.lineWidth = 1.8;
+                bpCtx.strokeStyle = '#ef4444';
+                bpCtx.beginPath();
+                const midBP = bpCanvas.height * 0.7;
+                let yBP = midBP - Math.abs(Math.sin(xPos * 0.09 * speed)) * 18;
+                bpCtx.moveTo(xPos, midBP);
+                bpCtx.lineTo(xPos + 1.5, yBP);
+                bpCtx.stroke();
+
+                // 3. SpO2 Pleth Wave (Cyan)
+                spo2Ctx.lineWidth = 1.8;
+                spo2Ctx.strokeStyle = '#06b6d4';
+                spo2Ctx.beginPath();
+                const midSpO2 = spo2Canvas.height * 0.7;
+                let ySpO2 = midSpO2 - Math.abs(Math.sin(xPos * 0.08 * speed)) * 16;
+                spo2Ctx.moveTo(xPos, midSpO2);
+                spo2Ctx.lineTo(xPos + 1.5, ySpO2);
+                spo2Ctx.stroke();
+
+                // 4. Respiration Impedance Wave (Yellow)
+                respCtx.lineWidth = 1.8;
+                respCtx.strokeStyle = '#eab308';
+                respCtx.beginPath();
+                const midResp = respCanvas.height / 2;
+                let yResp = midResp + Math.sin(xPos * 0.04) * 10;
+                respCtx.moveTo(xPos, midResp);
+                respCtx.lineTo(xPos + 1.5, yResp);
+                respCtx.stroke();
+
+                xPos = (xPos + 1.5) % ecgCanvas.width;
+            }
+
+            renderWaves();
+        }
+
+        function cargarEscena(idEscena) {
+            escenaActual = idEscena;
+            const data = datosEscenas[idEscena];
+            if (!data) return;
+
+            actualizarDispositivoYEstado3D(idEscena);
+
+            document.getElementById('faseTitulo').innerText = data.fase;
+            document.getElementById('dispositivoNombre3D').innerText = data.dispositivo;
+            document.getElementById('tituloEvolucion').innerText = data.titulo;
+            document.getElementById('descripcionEvolucion').innerText = data.descripcion;
+
+            document.getElementById('examRostroSummary').innerText = data.sat < 90 ? "Palidez central, disnea" : "Tinte rosa, tranquilo";
+            document.getElementById('examCuelloSummary').innerText = data.fr > 24 ? "Uso ECM (+2), tiraje" : "Músculos relajados";
+            document.getElementById('examToraxSummary').innerText = data.auscultacion;
+            document.getElementById('examPerfusionSummary').innerHTML = `Llenado: ${data.llenadoCapilar}`;
+
+            document.getElementById('valSat').innerText = data.sat;
+            document.getElementById('valFC').innerText = data.fc;
+            document.getElementById('displayFR').innerText = data.fr;
+            document.getElementById('displayTA').innerText = data.ta;
+
+            const contenedor = document.getElementById('contenedorOpciones');
+            contenedor.innerHTML = "";
+
+            data.opciones.forEach(opc => {
+                const btn = document.createElement('button');
+                btn.className = `btn-interact w-full py-3.5 px-4 rounded-xl font-bold text-white text-xs md:text-sm shadow-md border border-white/10 flex items-center justify-between text-left ${opc.estilo}`;
+                btn.innerHTML = `
+                    <span>${opc.texto}</span>
+                    <span class="text-base opacity-90">➔</span>
+                `;
+                btn.onclick = () => cargarEscena(opc.destino);
+                contenedor.appendChild(btn);
+            });
+        }
+
+        function reiniciarSimulacion() {
+            cargarEscena('escena1');
+        }
+
+        function abrirModalExamen(zona) {
+            const data = datosEscenas[escenaActual];
+            const modal = document.getElementById('modalExamen');
+            const cont = document.getElementById('modalExamenContenido');
+            const audioCont = document.getElementById('audioAuscultationContainer');
+
+            audioCont.classList.add('hidden');
+
+            if (zona === 'cabeza') {
+                document.getElementById('modalExamenIcono').innerText = "👤";
+                document.getElementById('modalExamenTitulo').innerText = "Valoración de Cabeza, Rostro y Vía Aérea";
+                cont.innerHTML = `
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Conciencia (Escala RASS):</span> <span>${data.rass}</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Coloración Piel / Labios:</span> <span class="${data.sat < 90 ? 'text-red-400 font-bold' : 'text-slate-200'}">${data.sat < 90 ? 'Palidez/Cianosis central evidente' : 'Rosado, sin cianosis'}</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Aleteo Nasal:</span> <span>${data.fr > 24 ? 'Presente' : 'Ausente'}</span></div>
+                `;
+            } else if (zona === 'cuello') {
+                document.getElementById('modalExamenIcono').innerText = "👔";
+                document.getElementById('modalExamenTitulo').innerText = "Valoración de Cuello y Músculos Accesorios";
+                cont.innerHTML = `
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Uso de Esternocleidomastoideo:</span> <span>${data.mecanica}</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Ingurgitación Yugular:</span> <span>Ausente a 45°</span></div>
+                `;
+            } else if (zona === 'torax') {
+                document.getElementById('modalExamenIcono').innerText = "🫁";
+                document.getElementById('modalExamenTitulo').innerText = "Auscultación Pulmonar y Mecánica Torácica";
+                cont.innerHTML = `
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Ruidos Agregados:</span> <span class="text-amber-400 font-bold">${data.auscultacion}</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Entrada de Aire:</span> <span>${data.sat > 92 ? 'Conservada en ambos campos' : 'Disminuida en bases'}</span></div>
+                `;
+                audioCont.classList.remove('hidden');
+                document.getElementById('auscultacionAudioTexto').innerText = `Ruidos simulados: ${data.auscultacion}`;
+            } else if (zona === 'perfusion') {
+                document.getElementById('modalExamenIcono').innerText = "🖐️";
+                document.getElementById('modalExamenTitulo').innerText = "Vía Intravenosa y Perfusión Periférica";
+                cont.innerHTML = `
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Vía Venosa Periférica:</span> <span>Abocath #18 en antebrazo derecho (Infundiendo Sol. Fisiológica 0.9%)</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Tiempo de Llenado Capilar:</span> <span class="font-bold text-amber-400">${data.llenadoCapilar}</span></div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="font-bold text-sky-300">Sensor Pulsioximetría:</span> <span>Clip colocado en dedo índice derecho</span></div>
+                `;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function cerrarModalExamen() {
+            document.getElementById('modalExamen').classList.add('hidden');
+        }
+
+        function abrirModalGasometria() {
+            const data = datosEscenas[escenaActual];
+            document.getElementById('eabPH').innerText = `${data.eab.ph}`;
+            document.getElementById('eabPaO2').innerText = `${data.eab.pao2}`;
+            document.getElementById('eabPaCO2').innerText = `${data.eab.paco2}`;
+            document.getElementById('eabHCO3').innerText = `${data.eab.hco3}`;
+            document.getElementById('eabPAFI').innerText = `${data.eab.pafi}`;
+            document.getElementById('modalGasometria').classList.remove('hidden');
+        }
+
+        function cerrarModalGasometria() {
+            document.getElementById('modalGasometria').classList.add('hidden');
+        }
+
+        function toggleAudio() {
+            audioActivo = !audioActivo;
+            const btn = document.getElementById('btnAudioToggle');
+            const icon = document.getElementById('audioIcon');
+
+            if (audioActivo) {
+                btn.classList.add('border-sky-500', 'bg-sky-900/40');
+                icon.innerText = "🔊";
+                iniciarSonidoBeep();
+            } else {
+                btn.classList.remove('border-sky-500', 'bg-sky-900/40');
+                icon.innerText = "🔇";
+            }
+        }
+
+        function iniciarSonidoBeep() {
+            if (!audioActivo) return;
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+
+                const data = datosEscenas[escenaActual] || datosEscenas.escena1;
+                const sat = data.sat;
+                const freq = sat < 90 ? 440 : 650;
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+
+                gain.gain.setValueAtTime(0.025, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+
+                osc.start();
+                osc.stop(audioContext.currentTime + 0.1);
+
+                const fc = data.fc || 90;
+                const intervalo = (60 / fc) * 1000;
+                setTimeout(iniciarSonidoBeep, intervalo);
+            } catch (e) {
+                console.log("Audio waiting for user gesture");
+            }
+        }
+
+        function reproducirAuscultacion() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, audioContext.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(450, audioContext.currentTime + 0.8);
+                osc.frequency.exponentialRampToValueAtTime(280, audioContext.currentTime + 1.6);
+
+                gain.gain.setValueAtTime(0.04, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0.001, audioContext.currentTime + 2.0);
+
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+
+                osc.start();
+                osc.stop(audioContext.currentTime + 2.0);
+            } catch(e) {
+                console.log("Audio context error");
+            }
+        }
+
+        setInterval(() => {
+            const reloj = document.getElementById('horaMonitor');
+            if (reloj) {
+                const now = new Date();
+                reloj.innerText = now.toTimeString().split(' ')[0];
+            }
+        }, 1000);
+
+        window.onload = function() {
+            initWaveCanvases();
+            cargarEscena('escena1');
+        };
+    </script>
+</body>
+</html>
